@@ -143,6 +143,62 @@ jobs:
         working-directory: simple_live_app
         run: flutter build windows --release
 
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Prepare payload
+        shell: bash
+        run: |
+          mkdir -p payload
+          cp -r simple_live_app/build/windows/x64/runner/Release/* payload/
+          ls payload | head -6
+
+      - name: Write installer script
+        shell: python
+        run: |
+          B = chr(92)
+          iss = """[Setup]
+          AppId={{8F3C2A71-5B4D-4E29-9C1A-7D6B2E4F9A31}
+          AppName=Simple Live
+          AppVersion=1.11.4-fixed
+          AppPublisher=Simple Live community build
+          DefaultDirName={localappdata}@Programs@SimpleLive
+          DefaultGroupName=Simple Live
+          DisableProgramGroupPage=yes
+          PrivilegesRequired=lowest
+          OutputDir=dist
+          OutputBaseFilename=SimpleLive-Setup-1.11.4-fixed
+          Compression=lzma2/max
+          SolidCompression=yes
+          ArchitecturesAllowed=x64compatible
+          ArchitecturesInstallIn64BitMode=x64compatible
+          UninstallDisplayIcon={app}@simple_live_app.exe
+          WizardStyle=modern
+
+          [Tasks]
+          Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
+
+          [Files]
+          Source: "payload@*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+          [Icons]
+          Name: "{autoprograms}@Simple Live"; Filename: "{app}@simple_live_app.exe"
+          Name: "{autodesktop}@Simple Live"; Filename: "{app}@simple_live_app.exe"; Tasks: desktopicon
+
+          [Run]
+          Filename: "{app}@simple_live_app.exe"; Description: "Launch Simple Live"; Flags: nowait postinstall skipifsilent
+          """
+          open("installer.iss", "w", encoding="utf-8").write(iss.replace("@", B))
+          print(open("installer.iss", encoding="utf-8").read()[:400])
+
+      - name: Build installer
+        run: '& "C:/Program Files (x86)/Inno Setup 6/ISCC.exe" installer.iss'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SimpleLive-Setup
+          path: dist/*.exe
+
       - uses: actions/upload-artifact@v4
         with:
           name: SimpleLive-Windows
